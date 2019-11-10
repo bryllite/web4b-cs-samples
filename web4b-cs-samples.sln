@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.902
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bryllite.App.Sample.TcpGameBase", "Bryllite.App.Sample.TcpGameBase\Bryllite.App.Sample.TcpGameBase.csproj", "{76C3BDB0-CD44-4FD0-815E-D1C287D1D3F9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bryllite.App.Sample.TcpGameServer", "Bryllite.App.Sample.TcpGameServer\Bryllite.App.Sample.TcpGameServer.csproj", "{400DC9DB-A140-4401-8F90-0E653FD71D5B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bryllite.App.Sample.TcpGameClient", "Bryllite.App.Sample.TcpGameClient\Bryllite.App.Sample.TcpGameClient.csproj", "{69062AA7-9905-4136-91A9-7BC32F2B8AF4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{76C3BDB0-CD44-4FD0-815E-D1C287D1D3F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76C3BDB0-CD44-4FD0-815E-D1C287D1D3F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76C3BDB0-CD44-4FD0-815E-D1C287D1D3F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76C3BDB0-CD44-4FD0-815E-D1C287D1D3F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{400DC9DB-A140-4401-8F90-0E653FD71D5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{400DC9DB-A140-4401-8F90-0E653FD71D5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{400DC9DB-A140-4401-8F90-0E653FD71D5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{400DC9DB-A140-4401-8F90-0E653FD71D5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69062AA7-9905-4136-91A9-7BC32F2B8AF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69062AA7-9905-4136-91A9-7BC32F2B8AF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69062AA7-9905-4136-91A9-7BC32F2B8AF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69062AA7-9905-4136-91A9-7BC32F2B8AF4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FEC3BBCA-11B3-46B1-97F7-53BAF06C3969}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Authors>Bryllite Ltd.</Authors>
+    <Description>Tcp game service sample base library for Bryllite.</Description>
+    <Copyright>COPYRIGHT (C) BRYLLITE LTD. ALL RIGHTS RESERVED</Copyright>
+    <PackageLicenseUrl>https://github.com/bryllite/web4b-cs/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/bryllite/web4b-cs</PackageProjectUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Bryllite.Rpc.Web4b" Version="0.5.3.6" />
+    <PackageReference Include="Bryllite.Utils.AppBase" Version="0.5.3.6" />
+  </ItemGroup>
+
+</Project>
