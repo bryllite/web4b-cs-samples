@@ -145,7 +145,7 @@ login success! session=dgp25ZQeazfuq/FLDQf1GsxdTpPP9VwRDOJtb5TKZsQ=, address=0x8
 > info()
 {
   "uid": "testuser",
-  "rdate": "2019-11-10 오후 11:27:39",
+  "rdate": "2019-11-10 PM 11:27:39",
   "address": "0x80b08a87314adb50326581e64dd117f8f9b43209",
   "balance": 100.0,
   "nonce": 0,
