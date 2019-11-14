@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 using Bryllite.Utils.Currency;
 using System.Threading.Tasks;
 using Bryllite.Rpc.Web4b.Extensions;
+using Bryllite.Cryptography.Aes;
 
 namespace Bryllite.App.Sample.TcpGameServer
 {
@@ -27,8 +28,8 @@ namespace Bryllite.App.Sample.TcpGameServer
         // game key
         private PrivateKey gamekey => app.GameKey;
 
-        // coinbox
-        private string coinbox => app.CoinBox;
+        // shop address
+        private string shopAddress => app.ShopAddress;
 
         // bryllite api service
         private BrylliteApiForGameServer api => app.ApiService;
@@ -43,6 +44,9 @@ namespace Bryllite.App.Sample.TcpGameServer
                     return sessions.Keys.ToArray();
             }
         }
+
+        // is server running?
+        public bool Running => server.Running;
 
         public GameServer(GameServerApp app)
         {
@@ -73,6 +77,9 @@ namespace Bryllite.App.Sample.TcpGameServer
             MapMessageHandler("market.unregister.req", OnMessageMarketUnregisterReq);
             MapMessageHandler("market.list.req", OnMessageMarketListReq);
             MapMessageHandler("market.buy.req", OnMessageMarketBuyReq);
+
+            // key export
+            MapMessageHandler("key.export.token.req", OnMessageKeyExportTokenReq);
 
         }
 
@@ -332,9 +339,9 @@ namespace Bryllite.App.Sample.TcpGameServer
                 return;
             }
 
-            // user's balance -> coinbox
+            // user's balance -> shop address
             string signer = api.GetUserKey(uid);
-            string txid = api.TransferAsync(signer, coinbox, item.Price, 0).Result;
+            string txid = api.TransferAsync(signer, shopAddress, item.Price, 0).Result;
             if (string.IsNullOrEmpty(txid))
             {
                 session.Write(new GameMessage("error").With("message", "txid not found"));
@@ -505,6 +512,27 @@ namespace Bryllite.App.Sample.TcpGameServer
                 gamedb.Inventories.Update(uid, inven);
 
                 session.Write(new GameMessage("market.buy.res").With("itemname", sales.ItemName).With("price", sales.Price));
+            });
+        }
+
+        private void OnMessageKeyExportTokenReq(TcpSession session, GameMessage message)
+        {
+            string scode = message.Get<string>("session");
+            string uid = GetUidBySession(scode);
+            if (string.IsNullOrEmpty(uid) || scode != session.ID)
+            {
+                session.Write(new GameMessage("error").With("message", "unknown session key"));
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                string token = await api.GetKeyExportTokenAsync(uid);
+                BConsole.WriteLine("token: ", token);
+
+                // AES encrypt with session key
+                if(Aes256.TryEncrypt(Encoding.UTF8.GetBytes(scode), Hex.ToByteArray(token), out var encrypted))
+                    session.Write(new GameMessage("key.export.token.res").With("token", Hex.ToString(encrypted)));
             });
         }
     }

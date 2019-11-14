@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.Text;
 using Bryllite.Utils.Currency;
 using Bryllite.Rpc.Web4b.Extensions;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace Bryllite.App.Sample.TcpGameServer
 {
@@ -29,8 +31,8 @@ namespace Bryllite.App.Sample.TcpGameServer
         // market commission
         public readonly decimal Commission;
 
-        // coinbox address
-        public readonly string CoinBox;
+        // shop address
+        public readonly string ShopAddress;
 
         // bryllite api service for gameserver
         public readonly BrylliteApiForGameServer ApiService;
@@ -55,12 +57,12 @@ namespace Bryllite.App.Sample.TcpGameServer
             // market commission
             Commission = config["game"].Value<decimal>("commission");
 
-            // coinbox address
-            CoinBox = config["coinbox"].Value<string>("address");
+            // shop address
+            ShopAddress = config["shop"].Value<string>("address");
 
             // create bryllite api for gameserver
             string remote = config["bridge"].Value<string>("url");
-            ApiService = new BrylliteApiForGameServer(remote, GameKey, CoinBox);
+            ApiService = new BrylliteApiForGameServer(remote, GameKey, ShopAddress);
         }
 
         private void OnMapCommandHandlers()
@@ -94,11 +96,8 @@ namespace Bryllite.App.Sample.TcpGameServer
             GameDB.Start();
 
             // start game server
-            GameServer.Start(GamePort);
+            StartServer(GamePort);
             Log.Info("GameServer started on port: ", Color.DarkGreen, GamePort);
-
-            // connection made
-            ApiService.Connect();
 
             return true;
         }
@@ -106,13 +105,47 @@ namespace Bryllite.App.Sample.TcpGameServer
         public override void OnAppCleanup()
         {
             // stop game server
-            GameServer.Stop();
+            StopServer();
 
             // stop gamedb
             GameDB.Stop();
 
             Log.Info("GameServerApplication terminated");
         }
+
+        public void StartServer(int port)
+        {
+            // start game server
+            GameServer.Start(port);
+
+            // 30초에 한번씩 poa token seed를 업데이트 한다
+            Task.Run(async () =>
+            {
+                await ApiService.UpdatePoATokenSeedAsync();
+
+                var sw = Stopwatch.StartNew();
+                while (GameServer.Running)
+                {
+                    // timeout?
+                    if (sw.ElapsedMilliseconds < 30000)
+                    {
+                        await Task.Delay(10);
+                        continue;
+                    }
+
+                    // update poa token seed
+                    await ApiService.UpdatePoATokenSeedAsync();
+                    sw.Restart();
+                }
+            });
+        }
+
+        public void StopServer()
+        {
+            // stop game server
+            GameServer.Stop();
+        }
+
 
         public string GetAddressByUid(string uid)
         {
@@ -124,14 +157,14 @@ namespace Bryllite.App.Sample.TcpGameServer
             int port = args.Length > 0 ? Convert.ToInt32(args[0]) : this.GamePort;
 
             // start game server
-            GameServer.Start(port);
+            StartServer(port);
             Log.Info("GameServer started on port: ", Color.DarkGreen, port);
         }
 
         private void OnCommandServerStop(string[] args)
         {
             // stop game server
-            GameServer.Stop();
+            StopServer();
             Log.Info("GameServer stopped!");
         }
 

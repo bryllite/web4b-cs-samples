@@ -62,6 +62,9 @@ namespace Bryllite.App.Sample.TcpGameClient
             MapCommandHandler("market.unregister", "(trid): 아이템 판매를 취소합니다", OnCommandMarketUnregister);
             MapCommandHandler("market.buy", "(trid): 판매중인 아이템을 구매합니다", OnCommandMarketBuy);
             MapCommandHandler("market.list", "아이템 판매 목록을 출력합니다", OnCommandMarketList);
+
+            // key export
+            MapCommandHandler("key.export", "유저키 내보내기를 위한 토큰을 요청합니다", OnCommandKeyExport);
         }
 
 
@@ -218,6 +221,12 @@ namespace Bryllite.App.Sample.TcpGameClient
         // 마켓에 내 아이템 판매를 등록한다
         private void OnCommandMarketRegister(string[] args)
         {
+            if (!GameClient.Connected)
+            {
+                BConsole.WriteLine("not connected!");
+                return;
+            }
+
             string itemcode = args[0];
             decimal price = decimal.Parse(args[1]);
 
@@ -228,6 +237,12 @@ namespace Bryllite.App.Sample.TcpGameClient
         // 아이템 판매 등록 취소
         private void OnCommandMarketUnregister(string[] args)
         {
+            if (!GameClient.Connected)
+            {
+                BConsole.WriteLine("not connected!");
+                return;
+            }
+
             string order = args[0];
 
             // 아이템 판매 등록 취소
@@ -236,18 +251,40 @@ namespace Bryllite.App.Sample.TcpGameClient
 
         private void OnCommandMarketList(string[] args)
         {
+            if (!GameClient.Connected)
+            {
+                BConsole.WriteLine("not connected!");
+                return;
+            }
+
             // 아이템 판매 목록
             GameClient.MarketList();
         }
 
         private void OnCommandMarketBuy(string[] args)
         {
+            if (!GameClient.Connected)
+            {
+                BConsole.WriteLine("not connected!");
+                return;
+            }
+
             string order = args[0];
 
             // 아이템 구매
             GameClient.MarketBuy(order);
         }
 
+        private void OnCommandKeyExport(string[] args)
+        {
+            if (!GameClient.Connected)
+            {
+                BConsole.WriteLine("not connected!");
+                return;
+            }
 
+            // 키 내보내기 토큰 요청
+            GameClient.ExportKey();
+        }
     }
 }

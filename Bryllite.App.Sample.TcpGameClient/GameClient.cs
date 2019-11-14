@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Threading;
 using Newtonsoft.Json.Linq;
 using Bryllite.Rpc.Web4b.Extensions;
+using Bryllite.Cryptography.Aes;
 
 namespace Bryllite.App.Sample.TcpGameClient
 {
@@ -71,6 +72,8 @@ namespace Bryllite.App.Sample.TcpGameClient
             MapMessageHandler("market.unregister.res", OnMessageMarketUnregisterRes);
             MapMessageHandler("market.list.res", OnMessageMarketListRes);
             MapMessageHandler("market.buy.res", OnMessageMarketBuyRes);
+
+            MapMessageHandler("key.export.token.res", OnMessageKeyExportTokenRes);
         }
 
 
@@ -160,6 +163,11 @@ namespace Bryllite.App.Sample.TcpGameClient
         public void MarketBuy(string order)
         {
             Send(new GameMessage("market.buy.req").With("session", SessionKey).With("order", order));
+        }
+
+        public void ExportKey()
+        {
+            Send(new GameMessage("key.export.token.req").With("session", SessionKey));
         }
 
         private void OnConnected(TcpSession session, bool connected)
@@ -267,7 +275,6 @@ namespace Bryllite.App.Sample.TcpGameClient
             while (string.IsNullOrEmpty(poaToken) && sw.ElapsedMilliseconds < 5000)
                 await Task.Delay(10);
 
-            Log.Debug("accessToken=", poaToken);
             return poaToken;
         }
 
@@ -339,6 +346,13 @@ namespace Bryllite.App.Sample.TcpGameClient
             BConsole.WriteLine("market trade! item=", name, ", price=", price);
         }
 
+        private void OnMessageKeyExportTokenRes(TcpSession session, GameMessage message)
+        {
+            // AES decrypt with session key
+            byte[] encrypted = Hex.ToByteArray(message.Get<string>("token"));
 
+            if (Aes256.TryDecrypt(Encoding.UTF8.GetBytes(SessionKey), encrypted, out var plain))
+                BConsole.WriteLine("key export token: ", Hex.ToString(plain));
+        }
     }
 }
