@@ -16,9 +16,9 @@
   </Target>
 
   <ItemGroup>
-    <PackageReference Include="Bryllite.Rpc.Web4b" Version="0.5.3.7" />
-    <PackageReference Include="Bryllite.Utils.AppBase" Version="0.5.3.7" />
-    <PackageReference Include="Bryllite.Utils.Pbkdf" Version="0.5.3.7" />
+    <PackageReference Include="Bryllite.Rpc.Web4b" Version="0.5.4" />
+    <PackageReference Include="Bryllite.Utils.AppBase" Version="0.5.4" />
+    <PackageReference Include="Bryllite.Utils.Pbkdf" Version="0.5.4" />
   </ItemGroup>
 
 </Project>
