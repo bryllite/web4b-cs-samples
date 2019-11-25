@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Bryllite.Database.TrieDB" Version="0.5.4" />
+    <PackageReference Include="Bryllite.Database.TrieDB" Version="0.5.5" />
   </ItemGroup>
 
   <ItemGroup>

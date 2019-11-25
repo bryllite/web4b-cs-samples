@@ -66,7 +66,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             MapMessageHandler("token.req", OnMessageTokenReq);
             MapMessageHandler("info.req", OnMessageInfoReq);
             MapMessageHandler("transfer.req", OnMessageTransferReq);
-            MapMessageHandler("payout.req", OnMessagePayoutReq);
+            MapMessageHandler("withdraw.req", OnMessageWithdrawReq);
 
             // shop
             MapMessageHandler("shop.list.req", OnMessageShopListReq);
@@ -285,7 +285,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             session.Write(new GameMessage("transfer.res").With("txid", txid));
         }
 
-        private void OnMessagePayoutReq(TcpSession session, GameMessage message)
+        private void OnMessageWithdrawReq(TcpSession session, GameMessage message)
         {
             string scode = message.Get<string>("session");
             string uid = GetUidBySession(scode);
@@ -299,9 +299,9 @@ namespace Bryllite.App.Sample.TcpGameServer
             string to = message.Get<string>("to");
             decimal value = message.Get<decimal>("value");
 
-            // payout
-            string txid = api.PayoutAsync(signer, to, value, 0).Result;
-            session.Write(new GameMessage("payout.res").With("txid", txid));
+            // withdraw
+            string txid = api.WithdrawAsync(signer, to, value, 0).Result;
+            session.Write(new GameMessage("withdraw.res").With("txid", txid));
         }
 
         private void OnMessageShopListReq(TcpSession session, GameMessage message)

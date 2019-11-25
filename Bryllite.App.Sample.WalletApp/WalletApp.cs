@@ -138,7 +138,7 @@ namespace Bryllite.App.Sample.WalletApp
                 return;
             }
 
-            string password = BConsole.ReadPassword();
+            string password = BConsole.ReadPassword("password: ");
             if (account.Unlock(password))
                 BConsole.WriteLine(name, "(", account.Address, ") unlocked!");
         }
@@ -202,7 +202,7 @@ namespace Bryllite.App.Sample.WalletApp
 
             if (account.Locked)
             {
-                string passphrase = BConsole.ReadPassword();
+                string passphrase = BConsole.ReadPassword("password: ");
                 if (!account.Unlock(passphrase))
                 {
                     BConsole.WriteLine("can't unlock keystore");
@@ -312,7 +312,7 @@ namespace Bryllite.App.Sample.WalletApp
                 return;
             }
 
-            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword()))
+            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword("password: ")))
             {
                 BConsole.WriteLine("can't unlock account");
                 return;
@@ -340,7 +340,7 @@ namespace Bryllite.App.Sample.WalletApp
                 return;
             }
 
-            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword()))
+            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword("password: ")))
             {
                 BConsole.WriteLine("can't unlock account");
                 return;
@@ -368,7 +368,7 @@ namespace Bryllite.App.Sample.WalletApp
                 return;
             }
 
-            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword()))
+            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword("password: ")))
             {
                 BConsole.WriteLine("can't unlock account");
                 return;

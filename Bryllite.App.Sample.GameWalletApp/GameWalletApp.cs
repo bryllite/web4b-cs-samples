@@ -77,8 +77,8 @@ namespace Bryllite.App.Sample.GameWalletApp
             MapCommandHandler("getBalance", "(name | address, [number]): 계좌의 잔고를 조회합니다", OnCommandGetBalance);
             MapCommandHandler("getNonce", "(name | address, [number]): 계좌의 nonce를 조회합니다", OnCommandGetNonce);
             MapCommandHandler("transfer", "(from, to, value, [gas], [nonce]): 계좌 이체를 수행합니다.", OnCommandTransfer);
-            MapCommandHandler("payout", "(from, to, value, [gas], [nonce]): 계좌 출금을 수행합니다.", OnCommandPayout);
-            MapCommandHandler("payoutAndWaitReceipt", "(from, to, value, [gas], [nonce]): 계좌 출금을 실행하고 완료까지 대기합니다.", OnCommandPayoutAndWaitReceipt);
+            MapCommandHandler("withdraw", "(from, to, value, [gas], [nonce]): 계좌 출금을 수행합니다.", OnCommandWithdraw);
+            MapCommandHandler("withdrawAndWaitReceipt", "(from, to, value, [gas], [nonce]): 계좌 출금을 실행하고 완료까지 대기합니다.", OnCommandWithdrawAndWaitReceipt);
             MapCommandHandler("getTxHistory", "(name | address, [bool:tx]): 계좌의 트랜잭션 내역을 조회합니다", OnCommandGetTxHistory);
         }
 
@@ -137,7 +137,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                 return;
             }
 
-            string password = BConsole.ReadPassword();
+            string password = BConsole.ReadPassword("password: ");
             if (account.Unlock(password))
                 BConsole.WriteLine(name, "(", account.Address, ") unlocked!");
         }
@@ -194,13 +194,9 @@ namespace Bryllite.App.Sample.GameWalletApp
             {
                 string key = await web4b.ExportKeyAsync(token);
                 if (string.IsNullOrEmpty(key))
-                {
-                    BConsole.WriteLine("error: ", web4b.GetLastError());
                     return;
-                }
 
-                BConsole.WriteLine("user key received! wait a minute while encrypt key");
-
+                BConsole.WriteLine("key received! wait a while encrypting key...");
                 string keystore = KeyStoreService.EncryptKeyStoreV3(key, password);
                 var account = wallets.Add(name, keystore);
 
@@ -219,7 +215,7 @@ namespace Bryllite.App.Sample.GameWalletApp
 
             if (account.Locked)
             {
-                string passphrase = BConsole.ReadPassword();
+                string passphrase = BConsole.ReadPassword("password: ");
                 if (!account.Unlock(passphrase))
                 {
                     BConsole.WriteLine("can't unlock keystore");
@@ -329,7 +325,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                 return;
             }
 
-            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword()))
+            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword("password: ")))
             {
                 BConsole.WriteLine("can't unlock account");
                 return;
@@ -348,7 +344,7 @@ namespace Bryllite.App.Sample.GameWalletApp
             });
         }
 
-        private void OnCommandPayout(string[] args)
+        private void OnCommandWithdraw(string[] args)
         {
             string name = args[0];
             if (!wallets.TryGetValue(name, out Account sender))
@@ -357,7 +353,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                 return;
             }
 
-            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword()))
+            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword("password: ")))
             {
                 BConsole.WriteLine("can't unlock account");
                 return;
@@ -370,12 +366,12 @@ namespace Bryllite.App.Sample.GameWalletApp
                 ulong gas = args.Length > 3 ? Coin.ToBeryl(decimal.Parse(args[3])) : 0;
                 ulong? nonce = args.Length > 4 ? (ulong?)Convert.ToInt64(args[4]) : null;
 
-                var txid = await web4b.PayoutAsync(sender.Key, to, value, gas, nonce);
+                var txid = await web4b.WithdrawAsync(sender.Key, to, value, gas, nonce);
                 BConsole.WriteLine("txid=", txid);
             });
         }
 
-        private void OnCommandPayoutAndWaitReceipt(string[] args)
+        private void OnCommandWithdrawAndWaitReceipt(string[] args)
         {
             string name = args[0];
             if (!wallets.TryGetValue(name, out Account sender))
@@ -384,7 +380,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                 return;
             }
 
-            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword()))
+            if (sender.Locked && !sender.Unlock(BConsole.ReadPassword("password: ")))
             {
                 BConsole.WriteLine("can't unlock account");
                 return;
@@ -397,7 +393,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                 ulong gas = args.Length > 3 ? Coin.ToBeryl(decimal.Parse(args[3])) : 0;
                 ulong? nonce = args.Length > 4 ? (ulong?)Convert.ToInt64(args[4]) : null;
 
-                var tx = await web4b.PayoutAndWaitReceiptAsync(sender.Key, to, value, gas, nonce);
+                var tx = await web4b.WithdrawAndWaitReceiptAsync(sender.Key, to, value, gas, nonce);
                 BConsole.WriteLine("tx=", tx);
             });
         }

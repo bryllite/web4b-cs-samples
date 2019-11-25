@@ -34,7 +34,11 @@ namespace Bryllite.App.Sample.TcpGameClient
             BridgeUrl = config["bridge"].Value<string>("url");
 
             // game client
-            GameClient = new GameClient(this);
+            GameClient = new GameClient(this)
+            {
+                OnConnectionEstablished = OnConnected,
+                OnConnectionLost = OnDisconnected
+            };
 
             // map command handlers
             OnMapCommandHandlers();
@@ -44,13 +48,12 @@ namespace Bryllite.App.Sample.TcpGameClient
         {
             MapCommandHandler("connect", "([remote]): 게임 서버에 접속합니다", OnCommandConnect);
             MapCommandHandler("disconnect", "게임 서버 연결을 종료합니다", OnCommandDisconnect);
-            MapCommandHandler("login", "([uid]): 게임 서버에 로그인을 요청합니다", OnCommandLogin);
-            MapCommandHandler("logout", "게임 서버에서 로그아웃합니다", OnCommandLogout);
+            MapCommandHandler("login", "게임 서버에 로그인을 요청합니다", OnCommandLogin);
             MapCommandHandler("info", "내 정보를 요청합니다", OnCommandInfo);
 
             MapCommandHandler("coin.balance", "내 코인 잔고를 확인합니다", OnCommandCoinBalance);
             MapCommandHandler("coin.transfer", "(toUid, value): 내 코인을 친구에게 이체합니다", OnCommandCoinTransfer);
-            MapCommandHandler("coin.payout", "(to, value): 내 코인을 메인넷 주소로 출금합니다", OnCommandCoinPayout);
+            MapCommandHandler("coin.withdraw", "(to, value): 내 코인을 메인넷 주소로 출금합니다", OnCommandCoinWithdraw);
             MapCommandHandler("coin.history", "([bool]): 트랜잭션 히스토리를 출력합니다", OnCommandCoinHistory);
 
             // item shop
@@ -82,27 +85,26 @@ namespace Bryllite.App.Sample.TcpGameClient
             Log.Info("GameClientApplication terminated");
         }
 
+        private void OnConnected(bool connected)
+        {
+            Log.Info("connected=", connected);
+        }
+
+        private void OnDisconnected(int reason)
+        {
+            Log.Info("connection lost! reason=", reason);
+        }
+
         private void OnCommandConnect(string[] args)
         {
             string remote = args.Length > 0 ? args[0] : this.GameUrl;
             GameClient.Start(remote);
         }
 
-        private void OnCommandDisconnect(string[] args)
-        {
-            GameClient.Stop();
-        }
-
         private void OnCommandLogin(string[] args)
         {
-            if (!GameClient.Connected)
-            {
-                BConsole.WriteLine("not connected!");
-                return;
-            }
-
             // uid
-            string uid = args.Length > 0 ? args[0] : BConsole.ReadLine("uid: ");
+            string uid = BConsole.ReadLine("uid: ");
             if (string.IsNullOrEmpty(uid))
                 return;
 
@@ -118,15 +120,8 @@ namespace Bryllite.App.Sample.TcpGameClient
             GameClient.Login(uid, passcode);
         }
 
-        private void OnCommandLogout(string[] args)
+        private void OnCommandDisconnect(string[] args)
         {
-            if (!GameClient.Connected)
-            {
-                BConsole.WriteLine("not connected!");
-                return;
-            }
-
-            // send logout message
             GameClient.Logout();
         }
 
@@ -168,7 +163,7 @@ namespace Bryllite.App.Sample.TcpGameClient
             GameClient.Transfer(to, value);
         }
 
-        private void OnCommandCoinPayout(string[] args)
+        private void OnCommandCoinWithdraw(string[] args)
         {
             if (!GameClient.Connected)
             {
@@ -179,8 +174,8 @@ namespace Bryllite.App.Sample.TcpGameClient
             string to = args[0];
             decimal value = decimal.Parse(args[1]);
 
-            // payout
-            GameClient.Payout(to, value);
+            // withdraw
+            GameClient.Withdraw(to, value);
         }
 
         private void OnCommandCoinHistory(string[] args)

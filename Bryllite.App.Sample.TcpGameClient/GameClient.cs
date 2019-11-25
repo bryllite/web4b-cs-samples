@@ -35,6 +35,12 @@ namespace Bryllite.App.Sample.TcpGameClient
         // bryllite api
         public readonly BrylliteApiForGameClient Api;
 
+        // on connected callback
+        public Action<bool> OnConnectionEstablished;
+
+        // on disconnected callback
+        public Action<int> OnConnectionLost;
+
         public GameClient(GameClientApp app)
         {
             this.app = app;
@@ -63,7 +69,7 @@ namespace Bryllite.App.Sample.TcpGameClient
             MapMessageHandler("token.res", OnMessageTokenRes);
             MapMessageHandler("info.res", OnMessageInfoRes);
             MapMessageHandler("transfer.res", OnMessageTransferRes);
-            MapMessageHandler("payout.res", OnMessagePayoutRes);
+            MapMessageHandler("withdraw.res", OnMessageWithdrawRes);
 
             MapMessageHandler("shop.list.res", OnMessageShopListRes);
             MapMessageHandler("shop.buy.res", OnMessageShopBuyRes);
@@ -130,9 +136,9 @@ namespace Bryllite.App.Sample.TcpGameClient
             Send(new GameMessage("transfer.req").With("session", SessionKey).With("to", to).With("value", value));
         }
 
-        public void Payout(string to, decimal value)
+        public void Withdraw(string to, decimal value)
         {
-            Send(new GameMessage("payout.req").With("session", SessionKey).With("to", to).With("value", value));
+            Send(new GameMessage("withdraw.req").With("session", SessionKey).With("to", to).With("value", value));
         }
 
         public void ShopList()
@@ -172,12 +178,12 @@ namespace Bryllite.App.Sample.TcpGameClient
 
         private void OnConnected(TcpSession session, bool connected)
         {
-            Log.Info("OnConnected! connected=", connected);
+            OnConnectionEstablished?.Invoke(connected);
         }
 
         private void OnDisconnected(TcpSession session, int reason)
         {
-            Log.Info("OnDisonnected! reason=", reason);
+            OnConnectionLost?.Invoke(reason);
         }
 
         private void OnWritten(TcpSession session, byte[] message)
@@ -292,7 +298,7 @@ namespace Bryllite.App.Sample.TcpGameClient
             BConsole.WriteLine("txid=", txid);
         }
 
-        private void OnMessagePayoutRes(TcpSession session, GameMessage message)
+        private void OnMessageWithdrawRes(TcpSession session, GameMessage message)
         {
             // txid
             string txid = message.Get<string>("txid");

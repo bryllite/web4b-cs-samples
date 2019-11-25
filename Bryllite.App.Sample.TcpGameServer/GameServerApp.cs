@@ -65,29 +65,6 @@ namespace Bryllite.App.Sample.TcpGameServer
             ApiService = new BrylliteApiForGameServer(remote, GameKey, ShopAddress);
         }
 
-        private void OnMapCommandHandlers()
-        {
-            MapCommandHandler("server.start", "([port]): 게임 서버를 시작합니다", OnCommandServerStart);
-            MapCommandHandler("server.stop", "게임 서버를 정지합니다", OnCommandServerStop);
-            MapCommandHandler("server.sessions", "접속중인 세션 정보를 출력합니다", OnCommandServerSessions);
-
-            MapCommandHandler("users", "모든 게임 사용자 계정 목록을 출력합니다", OnCommandUsers);
-            MapCommandHandler("user.new", "([uid]): 새로운 게임 사용자 계정을 생성합니다", OnCommandUserNew);
-            MapCommandHandler("user.view", "(uid): 게임 사용자 계정 정보를 출력합니다", OnCommandUserView);
-            MapCommandHandler("user.del", "(uid): 게임 사용자 계정을 삭제합니다", OnCommandUserDel);
-
-            MapCommandHandler("items", "등록된 아이템 목록을 출력합니다", OnCommandItems);
-            MapCommandHandler("item.new", "(name, price): 새로운 아이템을 등록합니다", OnCommandItemNew);
-            MapCommandHandler("item.del", "(name): 아이템을 삭제합니다", OnCommandItemDel);
-            MapCommandHandler("item.issue", "(uid, name): 사용자에게 아이템을 지급합니다", OnCommandItemIssue);
-            MapCommandHandler("item.withdraw", "(uid, name): 사용자의 아이템을 회수합니다", OnCommandItemWithdraw);
-
-            MapCommandHandler("coinbase", "코인 베이스 계좌 주소 정보를 출력합니다", OnCommandCoinbase);
-            MapCommandHandler("coin.issue", "(uid, balance): 게임 사용자에게 코인을 지급합니다", OnCommandCoinIssue);
-            MapCommandHandler("coin.withdraw", "(uid, balance): 게임 사용자의 코인을 회수합니다", OnCommandCoinWithdraw);
-        }
-
-
         public override bool OnAppInitialize()
         {
             Log.Info("GameServerApplication started");
@@ -96,8 +73,11 @@ namespace Bryllite.App.Sample.TcpGameServer
             GameDB.Start();
 
             // start game server
-            StartServer(GamePort);
-            Log.Info("GameServer started on port: ", Color.DarkGreen, GamePort);
+            if (args.Has("start"))
+            {
+                StartServer(GamePort);
+                Log.Info("GameServer started on port: ", Color.DarkGreen, GamePort);
+            }
 
             return true;
         }
@@ -152,6 +132,29 @@ namespace Bryllite.App.Sample.TcpGameServer
             return GameKey.CKD(uid).Address;
         }
 
+        private void OnMapCommandHandlers()
+        {
+            MapCommandHandler("server.start", "([port]): 게임 서버를 시작합니다", OnCommandServerStart);
+            MapCommandHandler("server.stop", "게임 서버를 정지합니다", OnCommandServerStop);
+            MapCommandHandler("server.sessions", "접속중인 세션 정보를 출력합니다", OnCommandServerSessions);
+
+            MapCommandHandler("users", "모든 게임 사용자 계정 목록을 출력합니다", OnCommandUsers);
+            MapCommandHandler("user.new", "([uid]): 새로운 게임 사용자 계정을 생성합니다", OnCommandUserNew);
+            MapCommandHandler("user.view", "(uid): 게임 사용자 계정 정보를 출력합니다", OnCommandUserView);
+            MapCommandHandler("user.del", "(uid): 게임 사용자 계정을 삭제합니다", OnCommandUserDel);
+
+            MapCommandHandler("items", "등록된 아이템 목록을 출력합니다", OnCommandItems);
+            MapCommandHandler("item.new", "(name, price): 새로운 아이템을 등록합니다", OnCommandItemNew);
+            MapCommandHandler("item.del", "(name): 아이템을 삭제합니다", OnCommandItemDel);
+            MapCommandHandler("item.issue", "(uid, name): 사용자에게 아이템을 지급합니다", OnCommandItemIssue);
+            MapCommandHandler("item.burn", "(uid, name): 사용자의 아이템을 회수합니다", OnCommandItemBurn);
+
+            MapCommandHandler("coinbase", "코인 베이스 계좌 주소 정보를 출력합니다", OnCommandCoinbase);
+            MapCommandHandler("shop", "게임샵 계좌 주소 정보를 출력합니다", OnCommandShop);
+            MapCommandHandler("coin.issue", "(uid, balance): 게임 사용자에게 코인을 지급합니다", OnCommandCoinIssue);
+            MapCommandHandler("coin.burn", "(uid, balance): 게임 사용자의 코인을 회수합니다", OnCommandCoinBurn);
+        }
+
         private void OnCommandServerStart(string[] args)
         {
             int port = args.Length > 0 ? Convert.ToInt32(args[0]) : this.GamePort;
@@ -184,7 +187,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             foreach (var user in GameDB.Users.SelectAll())
             {
                 var j = JObject.FromObject(user);
-                j.Put("passhash", user.PassHash);
+                j.Put<string>("address", GameKey.CKD(user.Id).Address);
                 BConsole.WriteLine(j.ToString());
             }
         }
@@ -270,6 +273,14 @@ namespace Bryllite.App.Sample.TcpGameServer
             BConsole.WriteLine(address, "=", Coin.ToCoin(balance).ToString("N"), " BRC (", balance.ToString("N"), ")");
         }
 
+        private void OnCommandShop(string[] args)
+        {
+            string address = ShopAddress;
+            ulong balance = ApiService.GetBalanceAsync(address).Result;
+
+            BConsole.WriteLine(address, "=", Coin.ToCoin(balance).ToString("N"), " BRC (", balance.ToString("N"), ")");
+        }
+
         private void OnCommandCoinIssue(string[] args)
         {
             string uid = args[0];
@@ -290,7 +301,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             }
         }
 
-        private void OnCommandCoinWithdraw(string[] args)
+        private void OnCommandCoinBurn(string[] args)
         {
             string uid = args[0];
             decimal value = decimal.Parse(args[1]);
@@ -364,7 +375,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             BConsole.WriteLine(uid, ".inven=", inven);
         }
 
-        private void OnCommandItemWithdraw(string[] args)
+        private void OnCommandItemBurn(string[] args)
         {
             string uid = args[0];
             string name = args[1];
