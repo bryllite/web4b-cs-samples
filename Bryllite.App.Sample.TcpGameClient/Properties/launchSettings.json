@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Bryllite.App.Sample.TcpGameClient": {
+      "commandName": "Project",
+      "commandLineArgs": "--config=config/appsettings.json"
+    }
+  }
+}

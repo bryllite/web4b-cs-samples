@@ -1,6 +1,6 @@
 ﻿using Bryllite.Cryptography.Signers;
 using Bryllite.Extensions;
-using Bryllite.Rpc.Web4b;
+using Bryllite.Rpc.Web4b.Cyprus;
 using Bryllite.Utils.AppBase;
 using Bryllite.Utils.Currency;
 using Bryllite.Utils.NabiLog;
@@ -18,7 +18,7 @@ namespace Bryllite.App.Sample.GameWalletApp
     public class GameWalletApp : AppBase
     {
         // web4b api service
-        private CyprusApi web4b;
+        private readonly CyprusHelper web4b;
 
         // wallet service
         private WalletService wallets;
@@ -27,7 +27,7 @@ namespace Bryllite.App.Sample.GameWalletApp
         public GameWalletApp(string[] args) : base(args)
         {
             // web4b api
-            web4b = new CyprusApi(config["web4b"].Value<string>("provider"));
+            web4b = new CyprusHelper(config["web4b"].Value<string>("provider"));
 
             // wallets
             wallets = new WalletService();
@@ -36,9 +36,6 @@ namespace Bryllite.App.Sample.GameWalletApp
             {
                 await web4b.GetTimeAsync();
             });
-
-            // map command handlers
-            OnMapCommandHandlers();
         }
 
         public override bool OnAppInitialize()
@@ -61,7 +58,7 @@ namespace Bryllite.App.Sample.GameWalletApp
             Log.Info("Bye, Bryllite!");
         }
 
-        private void OnMapCommandHandlers()
+        public override void OnMapCommandHandlers()
         {
             // account management
             MapCommandHandler("accounts", "계좌 목록을 출력합니다", OnCommandAccounts);
@@ -92,9 +89,11 @@ namespace Bryllite.App.Sample.GameWalletApp
                     string name = entry.Key;
                     string address = entry.Value.Address;
 
-                    o.Put("name", name);
-                    o.Put("address", address);
-                    o.Put("balance", Coin.ToCoin(await web4b.GetBalanceAsync(address, Be4Api.LATEST) ?? 0).ToString("N"));
+                    (ulong? balance, string error) = await web4b.GetBalanceAsync(address);
+
+                    o.Put<string>("name", name);
+                    o.Put<string>("address", address);
+                    o.Put<string>("balance", Coin.ToCoin(balance??0).ToString("N"));
 
                     BConsole.WriteLine(o);
                 }
@@ -114,10 +113,10 @@ namespace Bryllite.App.Sample.GameWalletApp
             if (string.IsNullOrEmpty(key)) key = "Locked";
 
             var o = new JObject();
-            o.Put("name", name);
+            o.Put<string>("name", name);
             o.Put<string>("address", account.Address);
-            o.Put("secretKey", key);
-            o.Put("keystore", account.KeyStore);
+            o.Put<string>("secretKey", key);
+            o.Put<JObject>("keystore", account.KeyStore);
 
             BConsole.WriteLine(o);
         }
@@ -192,9 +191,12 @@ namespace Bryllite.App.Sample.GameWalletApp
 
             Task.Run(async () =>
             {
-                string key = await web4b.ExportKeyAsync(token);
+                (string key, string error) = await web4b.GetUserKeyAsync(token);
                 if (string.IsNullOrEmpty(key))
+                {
+                    BConsole.WriteLine("error: ", error);
                     return;
+                }
 
                 BConsole.WriteLine("key received! wait a while encrypting key...");
                 string keystore = KeyStoreService.EncryptKeyStoreV3(key, password);
@@ -285,7 +287,7 @@ namespace Bryllite.App.Sample.GameWalletApp
             Task.Run(async () =>
             {
                 string address = args[0].IsHexString() ? args[0] : wallets.TryGetValue(args[0], out var account) ? (string)account.Address : null;
-                string number = args.Length > 1 ? args[1] : Be4Api.LATEST;
+                string arg = args.Length > 1 ? args[1] : CyprusHelper.PENDING;
 
                 if (string.IsNullOrEmpty(address))
                 {
@@ -293,7 +295,8 @@ namespace Bryllite.App.Sample.GameWalletApp
                     return;
                 }
 
-                decimal balance = Coin.ToCoin(await web4b.GetBalanceAsync(address, number) ?? 0);
+                (ulong? beryl, string error) = await web4b.GetBalanceAsync(address, arg);
+                decimal balance = Coin.ToCoin(beryl??0);
                 BConsole.WriteLine(Color.DarkGreen, balance.ToString("N"), " BRC");
             });
         }
@@ -303,7 +306,7 @@ namespace Bryllite.App.Sample.GameWalletApp
             Task.Run(async () =>
             {
                 string address = args[0].IsHexString() ? args[0] : wallets.TryGetValue(args[0], out var account) ? (string)account.Address : null;
-                string number = args.Length > 1 ? args[1] : Be4Api.LATEST;
+                string arg = args.Length > 1 ? args[1] : CyprusHelper.PENDING;
 
                 if (string.IsNullOrEmpty(address))
                 {
@@ -311,7 +314,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                     return;
                 }
 
-                ulong nonce = await web4b.GetTransactionCountAsync(address, number) ?? 0;
+                (ulong? nonce, string error) = await web4b.GetTransactionCountAsync(address, arg);
                 BConsole.WriteLine(Color.DarkGreen, nonce);
             });
         }
@@ -333,13 +336,12 @@ namespace Bryllite.App.Sample.GameWalletApp
 
             Task.Run(async () =>
             {
-                string to = await web4b.GetAddressByUid(args[1]);
+                (string to, string error) = await web4b.GetAddressByUidAsync(args[1]);
                 ulong value = Coin.ToBeryl(decimal.Parse(args[2]));
                 ulong gas = args.Length > 3 ? Coin.ToBeryl(decimal.Parse(args[3])) : 0;
                 ulong? nonce = args.Length > 4 ? (ulong?)Convert.ToInt64(args[4]) : null;
 
-                var txid = await web4b.TransferAsync(sender.Key, to, value, gas, nonce);
-
+                (string txid, string err) = await web4b.SendTransferAsync(sender.Key, to, value, gas, nonce);
                 BConsole.WriteLine("txid=", txid);
             });
         }
@@ -366,7 +368,7 @@ namespace Bryllite.App.Sample.GameWalletApp
                 ulong gas = args.Length > 3 ? Coin.ToBeryl(decimal.Parse(args[3])) : 0;
                 ulong? nonce = args.Length > 4 ? (ulong?)Convert.ToInt64(args[4]) : null;
 
-                var txid = await web4b.WithdrawAsync(sender.Key, to, value, gas, nonce);
+                (string txid, string error) = await web4b.SendWithdrawAsync(sender.Key, to, value, gas, nonce);
                 BConsole.WriteLine("txid=", txid);
             });
         }
@@ -393,8 +395,8 @@ namespace Bryllite.App.Sample.GameWalletApp
                 ulong gas = args.Length > 3 ? Coin.ToBeryl(decimal.Parse(args[3])) : 0;
                 ulong? nonce = args.Length > 4 ? (ulong?)Convert.ToInt64(args[4]) : null;
 
-                var tx = await web4b.WithdrawAndWaitReceiptAsync(sender.Key, to, value, gas, nonce);
-                BConsole.WriteLine("tx=", tx);
+                (JObject receipt, string error) = await web4b.SendWithdrawAndWaitReceiptAsync(sender.Key, to, value, gas, nonce);
+                BConsole.WriteLine("receipt=", receipt, ", error=", error);
             });
         }
 
@@ -404,7 +406,9 @@ namespace Bryllite.App.Sample.GameWalletApp
             Task.Run(async () =>
             {
                 string address = wallets.TryGetValue(args[0], out var account) ? (string)account.Address : args[0];
-                bool tx = args.Length > 1 ? Convert.ToBoolean(args[1]) : false;
+                long start = args.Length > 1 ? Convert.ToInt64(args[1]) : 0;
+                bool desc = args.Length > 2 ? "desc" == args[2].ToLower() : false;
+                int max = args.Length > 3 ? Convert.ToInt32(args[3]) : 100;
 
                 if (string.IsNullOrEmpty(address))
                 {
@@ -412,8 +416,8 @@ namespace Bryllite.App.Sample.GameWalletApp
                     return;
                 }
 
-                var txs = await web4b.GetTransactionsByAddressAsync(address, tx);
-                BConsole.WriteLine("history=", txs.ToString());
+                (JArray txs, string error) = await web4b.GetTransactionsByAddressAsync(address, start, desc, max);
+                BConsole.WriteLine("history=", txs, ", error=", error);
             });
         }
 

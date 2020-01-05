@@ -1,0 +1,18 @@
+{
+  "title": "TcpGameServer",
+  "game": {
+    "keystore": "keystores/asia-east.static.bryllite.com.json",
+    "port": 1845,
+    "commission": 0.05,
+    "db": "asia-east"
+  },
+  "rpc": {
+    "url": "ws://asia-east.static.bryllite.com:9627"
+  },
+  "poa": {
+    "url": "ws://asia-east.static.bryllite.com:4742"
+  },
+  "shop": {
+    "address": "0xd5568bc7f367e8dbc850c62a166de472e0fc1419"
+  }
+}

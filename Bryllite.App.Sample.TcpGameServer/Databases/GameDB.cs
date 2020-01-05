@@ -12,9 +12,6 @@ namespace Bryllite.App.Sample.TcpGameServer
 
     public class GameDB
     {
-        // db path
-        private static readonly string BASEPATH = "gamedb";
-
         // users db
         public readonly UserDB Users;
 
@@ -30,21 +27,21 @@ namespace Bryllite.App.Sample.TcpGameServer
         // application
         private readonly GameServerApp app;
 
-        public GameDB(GameServerApp app)
+        public GameDB(GameServerApp app, string path)
         {
             this.app = app;
 
             // user db
-            Users = new UserDB(Path.Combine(BASEPATH, "users"));
+            Users = new UserDB(Path.Combine(path, "users"));
 
             // user db
-            Items = new ItemDB(Path.Combine(BASEPATH, "items"));
+            Items = new ItemDB(Path.Combine(path, "items"));
 
             // inventory db
-            Inventories = new InventoryDB(Path.Combine(BASEPATH, "inventories"));
+            Inventories = new InventoryDB(Path.Combine(path, "inventories"));
 
             // market db
-            Market = new MarketDB(Path.Combine(BASEPATH, "market"));
+            Market = new MarketDB(Path.Combine(path, "market"));
         }
 
         public void Start()

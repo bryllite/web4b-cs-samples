@@ -8,9 +8,12 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Bryllite.Utils.Currency;
-using Bryllite.Rpc.Web4b.Extensions;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using Bryllite.Utils.Pbkdf;
+using System.Threading;
+using Bryllite.Utils.Ntp;
+using Bryllite.Rpc.Web4b.Extension;
 
 namespace Bryllite.App.Sample.TcpGameServer
 {
@@ -26,7 +29,7 @@ namespace Bryllite.App.Sample.TcpGameServer
         public readonly int GamePort;
 
         // game key
-        public readonly PrivateKey GameKey;
+        public PrivateKey GameKey;
 
         // market commission
         public readonly decimal Commission;
@@ -34,16 +37,21 @@ namespace Bryllite.App.Sample.TcpGameServer
         // shop address
         public readonly string ShopAddress;
 
+        // poa url
+        public readonly string PoAUrl;
+
+        // rpc url
+        public readonly string RpcUrl;
+
         // bryllite api service for gameserver
-        public readonly BrylliteApiForGameServer ApiService;
+        private Web4bGameServer web4b;
+        public Web4bGameServer Web4b => web4b;
+
 
         public GameServerApp(string[] args) : base(args)
         {
-            // map command handlers
-            OnMapCommandHandlers();
-
             // gamedb
-            GameDB = new GameDB(this);
+            GameDB = new GameDB(this, config["game"].Value<string>("db"));
 
             // gameserver
             GameServer = new GameServer(this);
@@ -51,18 +59,17 @@ namespace Bryllite.App.Sample.TcpGameServer
             // game port
             GamePort = config["game"].Value<int>("port");
 
-            // game key
-            GameKey = config["game"].Value<string>("key");
-
             // market commission
             Commission = config["game"].Value<decimal>("commission");
 
             // shop address
             ShopAddress = config["shop"].Value<string>("address");
 
-            // create bryllite api for gameserver
-            string remote = config["bridge"].Value<string>("url");
-            ApiService = new BrylliteApiForGameServer(remote, GameKey, ShopAddress);
+            // poa url
+            PoAUrl = config["poa"].Value<string>("url");
+
+            // rpc url
+            RpcUrl = config["rpc"].Value<string>("url");
         }
 
         public override bool OnAppInitialize()
@@ -73,7 +80,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             GameDB.Start();
 
             // start game server
-            if (args.Has("start"))
+            if (!console || args.Contains("start"))
             {
                 StartServer(GamePort);
                 Log.Info("GameServer started on port: ", Color.DarkGreen, GamePort);
@@ -93,15 +100,75 @@ namespace Bryllite.App.Sample.TcpGameServer
             Log.Info("GameServerApplication terminated");
         }
 
-        public void StartServer(int port)
+        private bool LoadGameKey()
         {
+            if (ReferenceEquals(GameKey, null))
+            {
+                if (args.Contains("key"))
+                {
+                    GameKey = args.Value<string>("key");
+                    return !ReferenceEquals(GameKey, null);
+                }
+                else
+                {
+                    // keystore file for node key
+                    string keystore = (string)config["game"]["keystore"];
+                    if (string.IsNullOrEmpty(keystore))
+                        throw new Exception("keystore file not found");
+
+                    // password for master key
+                    string passphrase = args.Value("passphrase");
+                    if (string.IsNullOrEmpty(passphrase))
+                    {
+                        BConsole.WriteLine(Color.DarkYellow, "[INFO] ", "gamekey is locked! you should unlock first to start");
+                        passphrase = BConsole.ReadPassword(Color.White, "passphrase: ");
+                        if (string.IsNullOrEmpty(passphrase))
+                            throw new KeyNotFoundException("passphrase for game key");
+                    }
+
+                    // game key
+                    Log.Write("unlocking game key");
+                    var task = Task.Run(() =>
+                    {
+                        GameKey = KeyStoreService.DecryptKeyStoreV3FromFile(keystore, passphrase);
+                    });
+
+                    int tick = 0;
+                    while (!task.IsCompleted)
+                    {
+                        Thread.Sleep(10);
+                        if (tick != NetTime.UnixTime)
+                        {
+                            Log.Write(".");
+                            tick = NetTime.UnixTime;
+                        }
+                    }
+                }
+
+                bool res = !ReferenceEquals(GameKey, null);
+                Log.Write(" [", res ? Color.DarkGreen : Color.DarkRed, res ? " OK " : "FAIL", "]");
+                Log.WriteLine(", coinbase=", Color.DarkGreen, GameKey.Address);
+            }
+
+            return !ReferenceEquals(GameKey, null);
+        }
+
+        public bool StartServer(int port)
+        {
+            // load game key
+            if (!LoadGameKey())
+                return false;
+
+            // create bryllite api for gameserver
+            web4b = new Web4bGameServer(RpcUrl, GameKey, ShopAddress);
+
             // start game server
             GameServer.Start(port);
 
             // 30초에 한번씩 poa token seed를 업데이트 한다
             Task.Run(async () =>
             {
-                await ApiService.UpdatePoATokenSeedAsync();
+                await web4b.UpdatePoATokenSeedAsync();
 
                 var sw = Stopwatch.StartNew();
                 while (GameServer.Running)
@@ -114,16 +181,21 @@ namespace Bryllite.App.Sample.TcpGameServer
                     }
 
                     // update poa token seed
-                    await ApiService.UpdatePoATokenSeedAsync();
+                    await web4b.UpdatePoATokenSeedAsync();
                     sw.Restart();
                 }
             });
+
+            return true;
         }
 
         public void StopServer()
         {
             // stop game server
             GameServer.Stop();
+
+            // clear key
+            GameKey = null;
         }
 
 
@@ -132,7 +204,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             return GameKey.CKD(uid).Address;
         }
 
-        private void OnMapCommandHandlers()
+        public override void OnMapCommandHandlers()
         {
             MapCommandHandler("server.start", "([port]): 게임 서버를 시작합니다", OnCommandServerStart);
             MapCommandHandler("server.stop", "게임 서버를 정지합니다", OnCommandServerStop);
@@ -153,6 +225,8 @@ namespace Bryllite.App.Sample.TcpGameServer
             MapCommandHandler("shop", "게임샵 계좌 주소 정보를 출력합니다", OnCommandShop);
             MapCommandHandler("coin.issue", "(uid, balance): 게임 사용자에게 코인을 지급합니다", OnCommandCoinIssue);
             MapCommandHandler("coin.burn", "(uid, balance): 게임 사용자의 코인을 회수합니다", OnCommandCoinBurn);
+
+            MapCommandHandler("ping", "게임 클라이언트에 ping message를 전송합니다", OnCommandPing);
         }
 
         private void OnCommandServerStart(string[] args)
@@ -231,30 +305,42 @@ namespace Bryllite.App.Sample.TcpGameServer
             if (ReferenceEquals(user, null))
                 return;
 
-            // 사용자 정보
-            JObject info = JObject.FromObject(user);
-            info.Put("passhash", user.PassHash);
-
-            // 사용자 계좌 잔고 조회
-            string address = GameKey.CKD(uid).Address;
-            ulong balance = ApiService.GetBalanceAsync(address).Result;
-            ulong nonce = ApiService.GetNonceAsync(address, false).Result;
-
-            info.Put("address", address);
-            info.Put("balance", balance);
-            info.Put("nonce", nonce);
-
-            // 사용자 인벤토리
-            JArray inven = new JArray();
-            foreach (var itemcode in GameDB.Inventories.Select(uid))
+            Task.Run(async () =>
             {
-                var item = GameDB.Items.Select(itemcode);
-                if (null != item)
-                    inven.Add(JObject.FromObject(item));
-            }
-            info.Put("inventory", inven);
+                try
+                {
+                    // 사용자 정보
+                    JObject info = JObject.FromObject(user);
+                    info.Put<string>("passhash", user.PassHash);
 
-            BConsole.WriteLine(uid, "=", info);
+                    // 사용자 계좌 잔고 조회
+                    string address = GameKey.CKD(uid).Address;
+                    ulong balance = (await web4b.GetBalanceAsync(address)).balance.Value;
+                    ulong nonce = (await web4b.GetNonceAsync(address)).nonce.Value;
+                    
+                    info.Put<string>("address", address);
+                    info.Put<decimal>("balance", Coin.ToCoin(balance));
+                    info.Put<ulong>("nonce", nonce);
+
+                    // 사용자 인벤토리
+                    JArray inven = new JArray();
+                    foreach (var itemcode in GameDB.Inventories.Select(uid))
+                    {
+                        var item = GameDB.Items.Select(itemcode);
+                        if (null != item)
+                            inven.Add(JObject.FromObject(item));
+                    }
+                    info.Put<JArray>("inventory", inven);
+
+                    BConsole.WriteLine(uid, "=", info);
+                }
+                catch (Exception ex)
+                {
+                    BConsole.WriteLine("exception! ex=", ex);
+                }
+
+            });
+
         }
 
         private void OnCommandUserDel(string[] args)
@@ -267,59 +353,93 @@ namespace Bryllite.App.Sample.TcpGameServer
 
         private void OnCommandCoinbase(string[] args)
         {
-            string address = GameKey.Address;
-            ulong balance = ApiService.GetBalanceAsync(address).Result;
+            Task.Run(async () =>
+            {
+                try
+                {
+                    string address = GameKey.Address;
+                    ulong balance = (await web4b.GetBalanceAsync(address)).balance.Value;
+                    BConsole.WriteLine(address, "=", Coin.ToCoin(balance).ToString("N"), " BRC (", balance.ToString("N"), ")");
+                }
+                catch (Exception ex)
+                {
+                    BConsole.WriteLine("exception! ex=", ex);
+                }
+            });
 
-            BConsole.WriteLine(address, "=", Coin.ToCoin(balance).ToString("N"), " BRC (", balance.ToString("N"), ")");
         }
 
         private void OnCommandShop(string[] args)
         {
-            string address = ShopAddress;
-            ulong balance = ApiService.GetBalanceAsync(address).Result;
+            Task.Run(async () =>
+            {
+                try
+                {
+                    string address = ShopAddress;
+                    ulong balance = (await web4b.GetBalanceAsync(address)).balance.Value;
 
-            BConsole.WriteLine(address, "=", Coin.ToCoin(balance).ToString("N"), " BRC (", balance.ToString("N"), ")");
+                    BConsole.WriteLine(address, "=", Coin.ToCoin(balance).ToString("N"), " BRC (", balance.ToString("N"), ")");
+                }
+                catch (Exception ex)
+                {
+                    BConsole.WriteLine("exception! ex=", ex);
+                }
+            });
         }
 
         private void OnCommandCoinIssue(string[] args)
         {
-            string uid = args[0];
-            decimal value = decimal.Parse(args[1]);
-            string address = GetAddressByUid(uid);
-
-            // 코인 지급
-            string txid = ApiService.TransferAsync(GameKey, address, value, 0).Result;
-            BConsole.WriteLine("txid=", txid);
-
-            if (null != txid)
+            Task.Run(async () =>
             {
-                string hash = ApiService.WaitForTransactionConfirm(txid, 1000).Result;
+                try
+                {
+                    string uid = args[0];
+                    decimal value = decimal.Parse(args[1]);
+                    string address = GetAddressByUid(uid);
 
-                // coinbase 와 uid 잔액 출력
-                BConsole.WriteLine("coinbase.balance=", ApiService.GetBalanceAsync(GameKey.Address).Result);
-                BConsole.WriteLine(uid, "(", address, ").balance=", ApiService.GetBalanceAsync(address).Result);
-            }
+                    // 코인 지급
+                    string txid = (await web4b.SendTransferAsync(GameKey, address, web4b.ToBeryl(value))).txid;
+                    BConsole.WriteLine("txid=", txid);
+                    if (null != txid)
+                    {
+                        // coinbase 와 uid 잔액 출력
+                        BConsole.WriteLine("coinbase.balance=", (await web4b.GetBalanceAsync(GameKey.Address)).balance);
+                        BConsole.WriteLine(uid, "(", address, ").balance=", (await web4b.GetBalanceAsync(address)).balance);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    BConsole.WriteLine("exception! ex=", ex);
+                }
+            });
         }
 
         private void OnCommandCoinBurn(string[] args)
         {
-            string uid = args[0];
-            decimal value = decimal.Parse(args[1]);
-            PrivateKey signer = GameKey.CKD(uid);
-            string address = signer.Address;
-
-            // 코인 회수
-            string txid = ApiService.TransferAsync(signer, GameKey.Address, value, 0).Result;
-            BConsole.WriteLine("txid=", txid);
-
-            if (null != txid)
+            Task.Run(async () =>
             {
-                string hash = ApiService.WaitForTransactionConfirm(txid, 1000).Result;
+                try
+                {
+                    string uid = args[0];
+                    decimal value = decimal.Parse(args[1]);
+                    PrivateKey signer = GameKey.CKD(uid);
+                    string address = signer.Address;
 
-                // coinbase 와 uid 잔액 출력
-                BConsole.WriteLine("coinbase.balance=", ApiService.GetBalanceAsync(GameKey.Address).Result);
-                BConsole.WriteLine(uid, "(", address, ").balance=", ApiService.GetBalanceAsync(address).Result);
-            }
+                    // 코인 회수
+                    string txid = (await web4b.SendTransferAsync(signer, GameKey.Address, web4b.ToBeryl(value))).txid;
+                    BConsole.WriteLine("txid=", txid);
+                    if (null != txid)
+                    {
+                        // coinbase 와 uid 잔액 출력
+                        BConsole.WriteLine("coinbase.balance=", (await web4b.GetBalanceAsync(GameKey.Address)).balance);
+                        BConsole.WriteLine(uid, "(", address, ").balance=", (await web4b.GetBalanceAsync(address)).balance);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    BConsole.WriteLine("exception! ex=", ex);
+                }
+            });
         }
 
         private void OnCommandItems(string[] args)
@@ -387,5 +507,17 @@ namespace Bryllite.App.Sample.TcpGameServer
             BConsole.WriteLine("result=", result);
             BConsole.WriteLine(uid, ".inven=", inven);
         }
+
+        private void OnCommandPing(string[] args)
+        {
+            foreach (var connection in GameServer.Connections)
+            {
+                Task.Run(() =>
+                {
+                    connection.Write(new GameMessage("ping").With("timestamp", NetTime.Timestamp).With("dummy", SecureRandom.GetBytes(1024 * 1024)));
+                });
+            }
+        }
+
     }
 }

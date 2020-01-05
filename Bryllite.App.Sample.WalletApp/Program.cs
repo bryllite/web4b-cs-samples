@@ -6,7 +6,7 @@ namespace Bryllite.App.Sample.WalletApp
     {
         static void Main(string[] args)
         {
-            new WalletApp(args).Run();
+            new WalletApp(args) { console = true }.Run();
         }
     }
 }

@@ -5,6 +5,7 @@ using Bryllite.Utils.NabiLog;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Bryllite.App.Sample.TcpGameClient
 {
@@ -16,22 +17,10 @@ namespace Bryllite.App.Sample.TcpGameClient
         // game server address
         public readonly string GameUrl;
 
-        // poa url
-        public readonly string PoAUrl;
-
-        // bridge url
-        public readonly string BridgeUrl;
-
         public GameClientApp(string[] args) : base(args)
         {
             // server remote url
             GameUrl = config["game"].Value<string>("url");
-
-            // poa url
-            PoAUrl = config["poa"].Value<string>("url");
-
-            // bridge url
-            BridgeUrl = config["bridge"].Value<string>("url");
 
             // game client
             GameClient = new GameClient(this)
@@ -39,12 +28,9 @@ namespace Bryllite.App.Sample.TcpGameClient
                 OnConnectionEstablished = OnConnected,
                 OnConnectionLost = OnDisconnected
             };
-
-            // map command handlers
-            OnMapCommandHandlers();
         }
 
-        private void OnMapCommandHandlers()
+        public override void OnMapCommandHandlers()
         {
             MapCommandHandler("connect", "([remote]): 게임 서버에 접속합니다", OnCommandConnect);
             MapCommandHandler("disconnect", "게임 서버 연결을 종료합니다", OnCommandDisconnect);
@@ -145,7 +131,13 @@ namespace Bryllite.App.Sample.TcpGameClient
                 return;
             }
 
-            BConsole.WriteLine(GameClient.UserAddress, "=", Coin.ToCoin(GameClient.Api.GetBalanceAsync().Result), " BRC");
+            Task.Run(async () =>
+            {
+                var res = await GameClient.PoA.GetBalanceAsync();
+                if (null != res.balance)
+                    BConsole.WriteLine(GameClient.UserAddress, "=", Coin.ToCoin(res.balance.Value), " BRC");
+                else Log.Warning("error: ", res.error);
+            });
         }
 
         private void OnCommandCoinTransfer(string[] args)
@@ -180,10 +172,18 @@ namespace Bryllite.App.Sample.TcpGameClient
 
         private void OnCommandCoinHistory(string[] args)
         {
-            bool tx = args.Length > 0 ? Convert.ToBoolean(args[0]) : false;
+            long start = args.Length > 0 ? Convert.ToInt64(args[0]) : 0;
+            bool desc = args.Length > 1 ? "desc" == args[1].ToLower() : false;
+            int max = args.Length > 2 ? Convert.ToInt32(args[2]) : 100;
 
-            var txs = GameClient.Api.GetTransactionHistoryAsync(tx).Result;
-            BConsole.WriteLine("history=", txs.ToString());
+            Task.Run(async () =>
+            {
+                var res = await GameClient.PoA.GetTransactionHistoryAsync(start, desc, max);
+                if (!ReferenceEquals(res.txs, null))
+                    BConsole.WriteLine("history=", res.txs.ToString());
+                else Log.Warning("error: ", res.error);
+            });
+
         }
 
 

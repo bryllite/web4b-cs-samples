@@ -1,6 +1,7 @@
 ﻿using Bryllite.Cryptography.Signers;
 using Bryllite.Extensions;
 using Bryllite.Rpc.Web4b;
+using Bryllite.Rpc.Web4b.Be4;
 using Bryllite.Utils.AppBase;
 using Bryllite.Utils.Currency;
 using Bryllite.Utils.NabiLog;
@@ -18,7 +19,7 @@ namespace Bryllite.App.Sample.WalletApp
     public class WalletApp : AppBase
     {
         // web4b api
-        private Be4Api web4b;
+        private Be4Helper web4b;
 
         // wallet service
         private WalletService wallets;
@@ -27,7 +28,7 @@ namespace Bryllite.App.Sample.WalletApp
         public WalletApp(string[] args) : base(args)
         {
             // web4b api
-            web4b = new Be4Api(config["web4b"].Value<string>("provider"));
+            web4b = new Be4Helper(config["web4b"].Value<string>("provider"));
 
             // wallets
             wallets = new WalletService();
@@ -36,9 +37,6 @@ namespace Bryllite.App.Sample.WalletApp
             {
                 await web4b.GetTimeAsync();
             });
-
-            // map command handlers
-            OnMapCommandHandlers();
         }
 
         public override bool OnAppInitialize()
@@ -61,7 +59,7 @@ namespace Bryllite.App.Sample.WalletApp
             Log.Info("Bye, Bryllite!");
         }
 
-        private void OnMapCommandHandlers()
+        public override void OnMapCommandHandlers()
         {
             // account management
             MapCommandHandler("accounts", "계좌 목록을 출력합니다", OnCommandAccounts);
@@ -92,9 +90,11 @@ namespace Bryllite.App.Sample.WalletApp
                     string name = entry.Key;
                     string address = entry.Value.Address;
 
-                    o.Put("name", name);
-                    o.Put("address", address);
-                    o.Put("balance", Coin.ToCoin(await web4b.GetBalanceAsync(address, Be4Api.LATEST) ?? 0).ToString("N"));
+                    (ulong? balance, string error) = await web4b.GetBalanceAsync(address, Be4Helper.LATEST);
+
+                    o.Put<string>("name", name);
+                    o.Put<string>("address", address);
+                    o.Put<string>("balance", Coin.ToCoin(balance??0).ToString("N"));
 
                     BConsole.WriteLine(o);
                 }
@@ -114,10 +114,10 @@ namespace Bryllite.App.Sample.WalletApp
             if (string.IsNullOrEmpty(key)) key = "Locked";
 
             var o = new JObject();
-            o.Put("name", name);
+            o.Put<string>("name", name);
             o.Put<string>("address", account.Address);
-            o.Put("secretKey", key);
-            o.Put("keystore", account.KeyStore);
+            o.Put<string>("secretKey", key);
+            o.Put<JObject>("keystore", account.KeyStore);
 
             BConsole.WriteLine(o);
         }
@@ -272,7 +272,7 @@ namespace Bryllite.App.Sample.WalletApp
             Task.Run(async () =>
             {
                 string address = args[0].IsHexString() ? args[0] : wallets.TryGetValue(args[0], out var account) ? (string)account.Address : null;
-                string number = args.Length > 1 ? args[1] : Be4Api.LATEST;
+                string arg = args.Length > 1 ? args[1] : Be4Helper.LATEST;
 
                 if (string.IsNullOrEmpty(address))
                 {
@@ -280,7 +280,8 @@ namespace Bryllite.App.Sample.WalletApp
                     return;
                 }
 
-                decimal balance = Coin.ToCoin(await web4b.GetBalanceAsync(address, number) ?? 0);
+                (ulong? beryl, string error) = await web4b.GetBalanceAsync(address, arg);
+                decimal balance = Coin.ToCoin(beryl??0);
                 BConsole.WriteLine(Color.DarkGreen, balance.ToString("N"), " BRC");
             });
         }
@@ -290,7 +291,7 @@ namespace Bryllite.App.Sample.WalletApp
             Task.Run(async () =>
             {
                 string address = args[0].IsHexString() ? args[0] : wallets.TryGetValue(args[0], out var account) ? (string)account.Address : null;
-                string number = args.Length > 1 ? args[1] : Be4Api.LATEST;
+                string arg = args.Length > 1 ? args[1] : Be4Helper.LATEST;
 
                 if (string.IsNullOrEmpty(address))
                 {
@@ -298,7 +299,7 @@ namespace Bryllite.App.Sample.WalletApp
                     return;
                 }
 
-                ulong nonce = await web4b.GetTransactionCountAsync(address, number) ?? 0;
+                (ulong? nonce, string error) = await web4b.GetTransactionCountAsync(address, arg);
                 BConsole.WriteLine(Color.DarkGreen, nonce);
             });
         }
@@ -325,8 +326,7 @@ namespace Bryllite.App.Sample.WalletApp
                 ulong gas = args.Length > 3 ? Coin.ToBeryl(decimal.Parse(args[3])) : 0;
                 ulong? nonce = args.Length > 4 ? (ulong?)Convert.ToInt64(args[4]) : null;
 
-                var tx = await web4b.CreateTx(sender.Key, to, value, gas, nonce);
-
+                (var tx, string error) = await web4b.CreateTxAsync(sender.Key, to, value, gas, nonce);
                 BConsole.WriteLine("Rlp=", Hex.ToString(tx.Rlp));
             });
         }
@@ -391,7 +391,9 @@ namespace Bryllite.App.Sample.WalletApp
             Task.Run(async () =>
             {
                 string address = wallets.TryGetValue(args[0], out var account) ? (string)account.Address : args[0];
-                bool tx = args.Length > 1 ? Convert.ToBoolean(args[1]) : false;
+                long start = args.Length > 1 ? Convert.ToInt64(args[1]) : 0;
+                bool desc = args.Length > 2 ? "desc" == args[2].ToLower() : false;
+                int max = args.Length > 3 ? Convert.ToInt32(args[3]) : 100;
 
                 if (string.IsNullOrEmpty(address))
                 {
@@ -399,7 +401,7 @@ namespace Bryllite.App.Sample.WalletApp
                     return;
                 }
 
-                var txs = await web4b.GetTransactionsByAddressAsync(address, tx);
+                (var txs, string error) = await web4b.GetTransactionsByAddressAsync(address, start, desc, max);
                 BConsole.WriteLine("history=", txs.ToString());
             });
         }

@@ -37,7 +37,7 @@ namespace Bryllite.App.Sample.TcpGameBase
 
         public GameMessage With<T>(string key, T value)
         {
-            JsonExtension.Put(this, key, value);
+            JsonExtension.Put<T>(this, key, value);
             return this;
         }
 

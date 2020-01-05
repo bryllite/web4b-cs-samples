@@ -10,8 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Bryllite.Rpc.Web4b" Version="0.5.5" />
-    <PackageReference Include="Bryllite.Utils.AppBase" Version="0.5.5" />
+    <PackageReference Include="Bryllite.Rpc.Web4b.Extension" Version="0.6.0" />
+    <PackageReference Include="Bryllite.Rpc.Web4b.PoA" Version="0.6.0" />
+    <PackageReference Include="Bryllite.Utils.AppBase" Version="0.6.0" />
   </ItemGroup>
 
 </Project>

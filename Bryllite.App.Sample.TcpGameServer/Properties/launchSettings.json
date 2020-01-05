@@ -2,7 +2,7 @@
   "profiles": {
     "Bryllite.App.Sample.TcpGameServer": {
       "commandName": "Project",
-      "commandLineArgs": "--start"
+      "commandLineArgs": "--console --start --passphrase=asdf --config=config/asia-east.appsettings.json"
     }
   }
 }

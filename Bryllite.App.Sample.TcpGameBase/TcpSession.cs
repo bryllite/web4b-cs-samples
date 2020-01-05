@@ -12,7 +12,7 @@ namespace Bryllite.App.Sample.TcpGameBase
     public class TcpSession
     {
         public static readonly int HEADER_LENGTH = sizeof(int);
-        public static readonly int BUFFER_LENGTH = 8192;
+        public static readonly int BUFFER_LENGTH = 16 * 1024 * 1024;
 
         // session id string
         public readonly string ID;
@@ -139,7 +139,7 @@ namespace Bryllite.App.Sample.TcpGameBase
 
                 // 항상 헤더 크기만큼 읽는다.
                 // 헤더 사이즈 보다 작은 크기가 읽어지는 경우가 있나?
-                Guard.Assert(readBytes == HEADER_LENGTH);
+                Guard.Assert(readBytes == HEADER_LENGTH, "can't read header");
 
                 // 메세지 크기
                 int length = BitConverter.ToInt32(header, 0);

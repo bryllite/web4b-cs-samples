@@ -2,6 +2,7 @@
 using Bryllite.Extensions;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Bryllite.App.Sample.TcpGameServer
@@ -42,7 +43,7 @@ namespace Bryllite.App.Sample.TcpGameServer
         public List<Sales> ToList()
         {
             List<Sales> list = new List<Sales>();
-            foreach (var entry in this)
+            foreach (var entry in AsEnumerable())
                 list.Add(Sales.Parse(entry.Value));
 
             return list;

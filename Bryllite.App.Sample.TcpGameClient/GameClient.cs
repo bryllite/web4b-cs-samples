@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Threading;
 using Newtonsoft.Json.Linq;
-using Bryllite.Rpc.Web4b.Extensions;
 using Bryllite.Cryptography.Aes;
+using Bryllite.Rpc.Web4b.PoA;
 
 namespace Bryllite.App.Sample.TcpGameClient
 {
@@ -32,8 +32,8 @@ namespace Bryllite.App.Sample.TcpGameClient
         // user address
         public string UserAddress { get; private set; }
 
-        // bryllite api
-        public readonly BrylliteApiForGameClient Api;
+        // bryllite poa api
+        public PoAHelper PoA;
 
         // on connected callback
         public Action<bool> OnConnectionEstablished;
@@ -56,9 +56,6 @@ namespace Bryllite.App.Sample.TcpGameClient
 
             // map message handlers
             OnMapMessageHandlers();
-
-            // cyprus api
-            Api = new BrylliteApiForGameClient(app.BridgeUrl, app.PoAUrl, OnPoARequest);
         }
 
         private void OnMapMessageHandlers()
@@ -80,6 +77,8 @@ namespace Bryllite.App.Sample.TcpGameClient
             MapMessageHandler("market.buy.res", OnMessageMarketBuyRes);
 
             MapMessageHandler("key.export.token.res", OnMessageKeyExportTokenRes);
+
+            MapMessageHandler("ping", OnMessagePing);
         }
 
 
@@ -91,7 +90,7 @@ namespace Bryllite.App.Sample.TcpGameClient
         public void Stop()
         {
             // stop api service
-            Api.Stop();
+            PoA?.Stop();
 
             connection.Stop();
         }
@@ -242,11 +241,14 @@ namespace Bryllite.App.Sample.TcpGameClient
             // session code & user address
             SessionKey = message.Get<string>("scode");
             UserAddress = message.Get<string>("address");
+            string poaUrl = message.Get<string>("poaUrl");
+            string rpcUrl = message.Get<string>("rpcUrl");
 
             // start bryllite api service
-            Api.Start(Uid, UserAddress);
+            PoA = new PoAHelper(poaUrl, OnPoARequest, rpcUrl);
+            PoA.Start(Uid, UserAddress);
 
-            BConsole.WriteLine("login success! session=", SessionKey, ", address=", UserAddress);
+            BConsole.WriteLine("login success! session=", SessionKey, ", address=", UserAddress, ", poaUrl=", poaUrl, ", rpcUrl=", rpcUrl);
         }
 
         private void OnMessageLogoutRes(TcpSession session, GameMessage message)
@@ -281,6 +283,7 @@ namespace Bryllite.App.Sample.TcpGameClient
             while (string.IsNullOrEmpty(poaToken) && sw.ElapsedMilliseconds < 5000)
                 await Task.Delay(10);
 
+            Log.Debug("accessToken: ", poaToken);
             return poaToken;
         }
 
@@ -360,5 +363,12 @@ namespace Bryllite.App.Sample.TcpGameClient
             if (Aes256.TryDecrypt(Encoding.UTF8.GetBytes(SessionKey), encrypted, out var plain))
                 BConsole.WriteLine("key export token: ", Hex.ToString(plain));
         }
+
+        private void OnMessagePing(TcpSession session, GameMessage ping)
+        {
+            long timestamp = ping.Value<long>("timestamp");
+            Send(new GameMessage("pong").With("timestamp", timestamp));
+        }
+
     }
 }

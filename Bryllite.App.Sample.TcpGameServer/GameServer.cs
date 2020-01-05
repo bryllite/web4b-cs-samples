@@ -9,8 +9,9 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using Bryllite.Utils.Currency;
 using System.Threading.Tasks;
-using Bryllite.Rpc.Web4b.Extensions;
 using Bryllite.Cryptography.Aes;
+using Bryllite.Rpc.Web4b.Extension;
+using Bryllite.Utils.Ntp;
 
 namespace Bryllite.App.Sample.TcpGameServer
 {
@@ -31,8 +32,14 @@ namespace Bryllite.App.Sample.TcpGameServer
         // shop address
         private string shopAddress => app.ShopAddress;
 
+        // poa url
+        private string poaUrl => app.PoAUrl;
+
+        // rpc url
+        private string rpcUrl => app.RpcUrl;
+
         // bryllite api service
-        private BrylliteApiForGameServer api => app.ApiService;
+        private Web4bGameServer web4b => app.Web4b;
 
         // user sessions( session.key, uid )
         private Dictionary<string, string> sessions = new Dictionary<string, string>();
@@ -44,6 +51,8 @@ namespace Bryllite.App.Sample.TcpGameServer
                     return sessions.Keys.ToArray();
             }
         }
+
+        public IEnumerable<TcpSession> Connections => server.Connections;
 
         // is server running?
         public bool Running => server.Running;
@@ -81,6 +90,8 @@ namespace Bryllite.App.Sample.TcpGameServer
             // key export
             MapMessageHandler("key.export.token.req", OnMessageKeyExportTokenReq);
 
+            // pong
+            MapMessageHandler("pong", OnMessagePong);
         }
 
         public string GetUidBySession(string scode)
@@ -174,7 +185,9 @@ namespace Bryllite.App.Sample.TcpGameServer
             session.Write(
                 new GameMessage("login.res")
                 .With("scode", scode)
-                .With("address", api.GetUserAddress(uid))
+                .With("address", web4b.GetUserAddress(uid))
+                .With("poaUrl", poaUrl)
+                .With("rpcUrl", rpcUrl)
             );
         }
 
@@ -208,7 +221,7 @@ namespace Bryllite.App.Sample.TcpGameServer
             }
 
             // access token
-            string accessToken = api.GetPoAToken(uid, message.Get<string>("hash"), message.Get<string>("iv"));
+            (string accessToken, string error) = web4b.GetPoAToken(uid, message.Get<string>("hash"), message.Get<string>("iv"));
 
             // access token
             session.Write(
@@ -237,17 +250,17 @@ namespace Bryllite.App.Sample.TcpGameServer
 
             // user information
             JObject info = new JObject();
-            info.Put("uid", uid);
-            info.Put("rdate", user.RegisterDate);
+            info.Put<string>("uid", uid);
+            info.Put<string>("rdate", user.RegisterDate);
 
             // user balance & nonce
-            string address = api.GetUserAddress(uid);
-            ulong balance = api.GetBalanceAsync(address).Result;
-            ulong nonce = api.GetNonceAsync(address, false).Result;
+            string address = web4b.GetUserAddress(uid);
+            ulong balance = web4b.GetBalanceAsync(address).Result.balance ?? 0;
+            ulong nonce = web4b.GetNonceAsync(address).Result.nonce ?? 0;
 
-            info.Put("address", address);
-            info.Put("balance", Coin.ToCoin(balance));
-            info.Put("nonce", nonce);
+            info.Put<string>("address", address);
+            info.Put<decimal>("balance", Coin.ToCoin(balance));
+            info.Put<ulong>("nonce", nonce);
 
             // user inventory
             JArray inven = new JArray();
@@ -257,7 +270,7 @@ namespace Bryllite.App.Sample.TcpGameServer
                 inven.Add(JObject.Parse(item.ToString()));
             }
 
-            info.Put("inventory", inven);
+            info.Put<JArray>("inventory", inven);
 
             session.Write(
                 new GameMessage("info.res")
@@ -276,12 +289,12 @@ namespace Bryllite.App.Sample.TcpGameServer
                 return;
             }
 
-            string signer = api.GetUserKey(uid);
-            string to = api.GetUserAddress(message.Get<string>("to"));
+            string signer = web4b.GetUserKey(uid);
+            string to = web4b.GetUserAddress(message.Get<string>("to"));
             decimal value = message.Get<decimal>("value");
 
             // transfer
-            string txid = api.TransferAsync(signer, to, value, 0).Result;
+            string txid = web4b.SendTransferAsync(signer, to, web4b.ToBeryl(value)).Result.txid;
             session.Write(new GameMessage("transfer.res").With("txid", txid));
         }
 
@@ -295,12 +308,12 @@ namespace Bryllite.App.Sample.TcpGameServer
                 return;
             }
 
-            string signer = api.GetUserKey(uid);
+            string signer = web4b.GetUserKey(uid);
             string to = message.Get<string>("to");
             decimal value = message.Get<decimal>("value");
 
             // withdraw
-            string txid = api.WithdrawAsync(signer, to, value, 0).Result;
+            string txid = web4b.SendWithdrawAsync(signer, to, web4b.ToBeryl(value)).Result.txid;
             session.Write(new GameMessage("withdraw.res").With("txid", txid));
         }
 
@@ -340,8 +353,8 @@ namespace Bryllite.App.Sample.TcpGameServer
             }
 
             // user's balance -> shop address
-            string signer = api.GetUserKey(uid);
-            string txid = api.TransferAsync(signer, shopAddress, item.Price, 0).Result;
+            string signer = web4b.GetUserKey(uid);
+            string txid = web4b.SendTransferAsync(signer, shopAddress, web4b.ToBeryl(item.Price)).Result.txid;
             if (string.IsNullOrEmpty(txid))
             {
                 session.Write(new GameMessage("error").With("message", "txid not found"));
@@ -484,20 +497,20 @@ namespace Bryllite.App.Sample.TcpGameServer
                 BConsole.WriteLine("commission=", commission);
                 BConsole.WriteLine("payment=", payment);
 
-                string signer = api.GetUserKey(uid);
-                string seller = api.GetUserAddress(sales.Seller);
+                string signer = web4b.GetUserKey(uid);
+                string seller = web4b.GetUserAddress(sales.Seller);
 
                 // send tx
-                string txid = await api.TransferAsync(signer, seller, Coin.ToCoin(payment), Coin.ToCoin(commission));
+                string txid = (await web4b.SendTransferAsync(signer, seller, payment, commission)).txid;
                 if (string.IsNullOrEmpty(txid))
                 {
                     session.Write(new GameMessage("error").With("message", "tx failed"));
                     return;
                 }
 
-                // wait for tx completed
-                string hash = await api.WaitForTransactionConfirm(txid, 1000);
-                if (string.IsNullOrEmpty(hash))
+                // wait for tx confirm
+                var receipt = await web4b.WaitTransactionReceiptAsync(txid);
+                if (ReferenceEquals(receipt.receipt, null))
                 {
                     session.Write(new GameMessage("error").With("message", "timeout"));
                     return;
@@ -527,13 +540,22 @@ namespace Bryllite.App.Sample.TcpGameServer
 
             Task.Run(async () =>
             {
-                string token = await api.GetKeyExportTokenAsync(uid);
-                BConsole.WriteLine("token: ", token);
+                (string token, string error) = await web4b.GetUserKeyExportTokenAsync(uid);
+                BConsole.WriteLine("token: ", token, ", error: ", error);
 
                 // AES encrypt with session key
                 if(Aes256.TryEncrypt(Encoding.UTF8.GetBytes(scode), Hex.ToByteArray(token), out var encrypted))
                     session.Write(new GameMessage("key.export.token.res").With("token", Hex.ToString(encrypted)));
             });
         }
+
+        private void OnMessagePong(TcpSession session, GameMessage pong)
+        {
+            long timestamp = pong.Value<long>("timestamp");
+            long travel = NetTime.Timestamp - timestamp;
+
+            BConsole.WriteLine("travel_time: ", travel, "(ms)");
+        }
+
     }
 }

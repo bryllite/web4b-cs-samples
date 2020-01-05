@@ -1,0 +1,18 @@
+{
+  "title": "TcpGameServer",
+  "game": {
+    "keystore": "keystores/eu-west.static.bryllite.com.json",
+    "port": 1847,
+    "commission": 0.05,
+    "db": "eu-west"
+  },
+  "rpc": {
+    "url": "ws://eu-west.static.bryllite.com:9629"
+  },
+  "poa": {
+    "url": "ws://eu-west.static.bryllite.com:4744"
+  },
+  "shop": {
+    "address": "0xd5568bc7f367e8dbc850c62a166de472e0fc1419"
+  }
+}

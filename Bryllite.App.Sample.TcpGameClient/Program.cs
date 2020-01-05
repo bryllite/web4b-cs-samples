@@ -11,7 +11,7 @@ namespace Bryllite.App.Sample.TcpGameClient
             Log.Filter = LogLevel.All;
 
             // app run
-            new GameClientApp(args).Run();
+            new GameClientApp(args) { console = true }.Run();
         }
     }
 }
